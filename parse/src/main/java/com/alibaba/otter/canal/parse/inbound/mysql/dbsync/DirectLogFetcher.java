@@ -1,10 +1,13 @@
 package com.alibaba.otter.canal.parse.inbound.mysql.dbsync;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
 
 import org.slf4j.Logger;
@@ -37,6 +40,14 @@ public class DirectLogFetcher extends LogFetcher {
     public static final int       MAX_PACKET_LENGTH = (256 * 256 * 256 - 1);
 
     private SocketChannel         channel;
+    
+    /**
+     * 将{@link #channel}包装为{@code ReadableByteChannel}，目的是为了dump线程不要永久阻塞，
+     * 避免在断网或者主机重启时，dump线程卡死
+     * 
+     * @author yang zongyuan
+     */
+    private ReadableByteChannel wrappedChannel;
 
     // private BufferedInputStream input;
 
@@ -57,6 +68,10 @@ public class DirectLogFetcher extends LogFetcher {
         // 和mysql driver一样，提供buffer机制，提升读取binlog速度
         // this.input = new
         // BufferedInputStream(channel.socket().getInputStream(), 16384);
+        
+        // 包装为ReadableByteChannel，避免网络闪断时卡死
+        InputStream inStream = channel.socket().getInputStream();
+        wrappedChannel = Channels.newChannel(inStream);
     }
 
     /**
@@ -151,7 +166,7 @@ public class DirectLogFetcher extends LogFetcher {
 
         ByteBuffer buffer = ByteBuffer.wrap(this.buffer, off, len);
         while (buffer.hasRemaining()) {
-            int readNum = channel.read(buffer);
+            int readNum = wrappedChannel.read(buffer);
             if (readNum == -1) {
                 throw new IOException("Unexpected End Stream");
             }
