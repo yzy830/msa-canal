@@ -2,6 +2,8 @@ package com.alibaba.otter.canal.parse.driver.mysql.utils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SocketChannel;
 
 import com.alibaba.otter.canal.parse.driver.mysql.packets.HeaderPacket;
@@ -16,8 +18,10 @@ public abstract class PacketManager {
 
     public static ByteBuffer readBytesAsBuffer(SocketChannel ch, int len) throws IOException {
         ByteBuffer buffer = ByteBuffer.allocate(len);
+        ReadableByteChannel channelWrapper = Channels.newChannel(ch.socket().getInputStream());
+        
         while (buffer.hasRemaining()) {
-            int readNum = ch.read(buffer);
+            int readNum = channelWrapper.read(buffer);
             if (readNum == -1) {
                 throw new IOException("Unexpected End Stream");
             }
